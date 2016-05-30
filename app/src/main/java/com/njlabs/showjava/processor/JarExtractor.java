@@ -8,7 +8,6 @@ import com.googlecode.dex2jar.ir.IrMethod;
 import com.googlecode.dex2jar.reader.DexFileReader;
 import com.googlecode.dex2jar.v3.Dex2jar;
 import com.googlecode.dex2jar.v3.DexExceptionHandler;
-import com.njlabs.showjava.Constants;
 import com.njlabs.showjava.utils.StringUtils;
 import com.njlabs.showjava.utils.logging.Ln;
 
@@ -32,7 +31,7 @@ import java.util.List;
 @SuppressWarnings({"ResultOfMethodCallIgnored", "ConstantConditions"})
 public class JarExtractor extends ProcessServiceHelper {
 
-    private ArrayList<String> ignoredLibs;
+    private final ArrayList<String> ignoredLibs;
 
     public JarExtractor(ProcessService processService) {
         this.processService = processService;
@@ -43,6 +42,12 @@ public class JarExtractor extends ProcessServiceHelper {
         this.sourceOutputDir = processService.sourceOutputDir;
         this.javaSourceOutputDir = processService.javaSourceOutputDir;
         ignoredLibs = new ArrayList<>();
+
+        //////
+        printStream = new PrintStream(new ProgressStream());
+        System.setErr(printStream);
+        System.setOut(printStream);
+        //////
     }
 
     public void extract() {
@@ -53,17 +58,19 @@ public class JarExtractor extends ProcessServiceHelper {
             public void run() {
                 loadIgnoredLibs();
                 apkToDex();
-                dexToJar();
+                if(!processService.decompilerToUse.equals("jadx")){
+                    dexToJar();
+                }
                 startJavaExtractor();
             }
         };
-        Thread extractionThread = new Thread(group, runProcess, "DEX TO JAR EXTRACTION", Constants.STACK_SIZE);
+        Thread extractionThread = new Thread(group, runProcess, "DEX TO JAR EXTRACTION", processService.STACK_SIZE);
         extractionThread.setPriority(Thread.MAX_PRIORITY);
         extractionThread.setUncaughtExceptionHandler(exceptionHandler);
         extractionThread.start();
     }
 
-    public void apkToDex() {
+    private void apkToDex() {
         DexFile dexFile = null;
         try {
             dexFile = DexFileFactory.loadDexFile(packageFilePath, 19);
@@ -100,9 +107,11 @@ public class JarExtractor extends ProcessServiceHelper {
             broadcastStatus("exit");
             UIHandler.post(new ToastRunnable("The app you selected cannot be decompiled. Please select another app."));
         }
+
+
     }
 
-    public void dexToJar() {
+    private void dexToJar() {
         Log.i("STATUS", "Jar Extraction Started");
 
         broadcastStatus("dex2jar");
@@ -116,18 +125,12 @@ public class JarExtractor extends ProcessServiceHelper {
         boolean printIR = false; // print ir to System.out
         boolean optimizeSynchronized = true; // Optimise-synchronised
 
-        //////
-        PrintStream printStream = new PrintStream(new ProgressStream());
-        System.setErr(printStream);
-        System.setOut(printStream);
-        //////
-
         File PerAppWorkingDirectory = new File(sourceOutputDir);
         File file = new File(PerAppWorkingDirectory + "/" + packageName + ".jar");
 
         File dexFile = new File(PerAppWorkingDirectory + "/optimised_classes.dex");
 
-        if(dexFile.exists() && dexFile.isFile()){
+        if (dexFile.exists() && dexFile.isFile()) {
             DexExceptionHandlerMod dexExceptionHandlerMod = new DexExceptionHandlerMod();
             try {
                 DexFileReader reader = new DexFileReader(dexFile);
@@ -146,34 +149,22 @@ public class JarExtractor extends ProcessServiceHelper {
 
     }
 
-    class DexExceptionHandlerMod implements DexExceptionHandler {
-        @Override
-        public void handleFileException(Exception e) {
-            Ln.d("Dex2Jar Exception " + e);
-        }
-
-        @Override
-        public void handleMethodTranslateException(Method method, IrMethod irMethod, MethodNode methodNode, Exception e) {
-            Ln.d("Dex2Jar Exception " + e);
-        }
-    }
-
     private void startJavaExtractor() {
         JavaExtractor javaExtractor = new JavaExtractor(processService);
         javaExtractor.extract();
     }
 
-    private void loadIgnoredLibs(){
+    private void loadIgnoredLibs() {
+        String ignoredList = (processService.IGNORE_LIBS ? "ignored.list":"ignored_basic.list");
         BufferedReader reader = null;
         try {
-            reader = new BufferedReader(new InputStreamReader(processService.getAssets().open("ignored.list")));
+            reader = new BufferedReader(new InputStreamReader(processService.getAssets().open(ignoredList)));
             String mLine = reader.readLine().trim();
             while (mLine != null) {
                 mLine = mLine.trim();
-                if(mLine.length()!=0){
+                if (mLine.length() != 0) {
                     ignoredLibs.add(StringUtils.toClassName(mLine));
                 }
-                Ln.d(mLine);
                 mLine = reader.readLine();
             }
         } catch (IOException e) {
@@ -189,13 +180,25 @@ public class JarExtractor extends ProcessServiceHelper {
         }
     }
 
-    private boolean isIgnored(String className){
-        for (String ignoredClass : ignoredLibs){
-            if(className.startsWith(ignoredClass)){
+    private boolean isIgnored(String className) {
+        for (String ignoredClass : ignoredLibs) {
+            if (className.startsWith(ignoredClass)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private class DexExceptionHandlerMod implements DexExceptionHandler {
+        @Override
+        public void handleFileException(Exception e) {
+            Ln.d("Dex2Jar Exception " + e);
+        }
+
+        @Override
+        public void handleMethodTranslateException(Method method, IrMethod irMethod, MethodNode methodNode, Exception e) {
+            Ln.d("Dex2Jar Exception " + e);
+        }
     }
 
 

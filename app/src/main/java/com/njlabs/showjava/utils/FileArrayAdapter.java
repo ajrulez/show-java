@@ -18,9 +18,9 @@ import java.util.List;
 
 public class FileArrayAdapter extends ArrayAdapter<Item> {
 
-    private Context context;
-    private int id;
-    private List<Item> items;
+    private final Context context;
+    private final int id;
+    private final List<Item> items;
 
     public FileArrayAdapter(Context context, int textViewResourceId,
                             List<Item> objects) {
@@ -41,7 +41,7 @@ public class FileArrayAdapter extends ArrayAdapter<Item> {
             LayoutInflater vi = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
             v = vi.inflate(id, null);
         }
-              
+
         final Item o = items.get(position);
         if (o != null) {
 
@@ -49,12 +49,10 @@ public class FileArrayAdapter extends ArrayAdapter<Item> {
             TextView fileSizeView = (TextView) v.findViewById(R.id.file_size);
 
             ImageView fileIconView = (ImageView) v.findViewById(R.id.file_icon);
-            String uri = "drawable/" + o.getImage();
-            int imageResource = context.getResources().getIdentifier(uri, null, context.getPackageName());
-            //noinspection deprecation
-            Drawable image = context.getResources().getDrawable(imageResource);
 
-            if(FilenameUtils.getExtension(o.getPath()).equals("png")||FilenameUtils.getExtension(o.getPath()).equals("jpg")){
+            Drawable image = context.getResources().getDrawable(o.getImage());
+
+            if (FilenameUtils.getExtension(o.getPath()).equals("png") || FilenameUtils.getExtension(o.getPath()).equals("jpg")) {
                 image = Drawable.createFromPath(o.getPath());
             }
 
